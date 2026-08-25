@@ -1,0 +1,86 @@
+import type { BridgeAdapter, ChainSlug, Hop, ResolveInput } from "../types.js";
+import { LIFI_CHAIN_ID } from "../chains.js";
+import { fetchJson } from "../http.js";
+
+/**
+ * LI.FI (https://li.quest) is a bridge/DEX aggregator whose public `/v1/status`
+ * endpoint reports the outcome of transfers it routed — covering Across,
+ * Stargate, Hop, Synapse, cBridge, and others through one call. Verified live
+ * against the real API on 2026-08-25: `GET /v1/status?txHash=<hash>` returns
+ * `sending`/`receiving` objects with chainId, txHash, token, amount, plus a
+ * `tool` field naming the underlying bridge.
+ *
+ * IMPORTANT: in testing, a malformed/unmatched txHash did NOT reliably come
+ * back as "not found" — it can return an unrelated transfer. Always verify
+ * `sending.txHash` or `receiving.txHash` echoes the input hash before trusting
+ * the result.
+ */
+interface LifiTxInfo {
+  txHash: string;
+  chainId: number;
+  amount?: string;
+  timestamp?: number;
+  token?: { symbol?: string; address?: string; decimals?: number };
+}
+
+interface LifiStatusResponse {
+  status?: string; // NOT_FOUND | INVALID | PENDING | DONE | FAILED
+  substatus?: string;
+  tool?: string;
+  sending?: LifiTxInfo;
+  receiving?: LifiTxInfo;
+  fromAddress?: string;
+  toAddress?: string;
+}
+
+const chainIdToSlug: Record<number, ChainSlug> = Object.fromEntries(
+  Object.entries(LIFI_CHAIN_ID).map(([slug, id]) => [id, slug as ChainSlug]),
+);
+
+export const lifiAdapter: BridgeAdapter = {
+  name: "lifi",
+  supportsChain(chain) {
+    return chain in LIFI_CHAIN_ID;
+  },
+  async resolve({ chain, txHash }: ResolveInput): Promise<Hop | null> {
+    const chainId = LIFI_CHAIN_ID[chain];
+    if (chainId === undefined) return null;
+
+    let data: LifiStatusResponse;
+    try {
+      data = await fetchJson<LifiStatusResponse>(
+        `https://li.quest/v1/status?txHash=${encodeURIComponent(txHash)}&fromChain=${chainId}`,
+      );
+    } catch {
+      return null;
+    }
+
+    if (!data.status || data.status === "NOT_FOUND" || data.status === "INVALID") {
+      return null;
+    }
+
+    const echoesInput = (info?: LifiTxInfo) =>
+      info?.txHash?.toLowerCase() === txHash.toLowerCase();
+    if (!echoesInput(data.sending) && !echoesInput(data.receiving)) {
+      // API returned something, but not for the tx we asked about — discard.
+      return null;
+    }
+
+    const receiving = data.receiving;
+    const destChain = receiving ? chainIdToSlug[receiving.chainId] : undefined;
+
+    return {
+      bridge: `lifi:${data.tool ?? "unknown"}`,
+      sourceChain: chain,
+      sourceTx: txHash,
+      sourceAddress: data.fromAddress,
+      destChain,
+      destTx: data.status === "DONE" ? receiving?.txHash : undefined,
+      destAddress: data.toAddress,
+      amount: receiving?.amount ?? data.sending?.amount,
+      token: receiving?.token?.symbol ?? data.sending?.token?.symbol,
+      confidence: data.status === "DONE" ? "confirmed" : "unresolved",
+      raw: data,
+    };
+  },
+};

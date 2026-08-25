@@ -1,0 +1,45 @@
+{
+  "name": "bridgetrail",
+  "version": "0.1.0",
+  "description": "Recursive cross-chain bridge-hop tracer for blockchain investigators. Follows a transaction across bridges (Wormhole, Axelar, deBridge, LayerZero, Celer, and more via LI.FI) using each protocol's own public status API, and outputs a confidence-scored trace.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "bridgetrail": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "blockchain",
+    "osint",
+    "forensics",
+    "aml",
+    "cross-chain",
+    "bridge",
+    "investigation",
+    "crypto-tracing"
+  ]
+}
