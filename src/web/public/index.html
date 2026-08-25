@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>bridgetrail</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --border: #2a2e3a;
+    --text: #e6e8ef;
+    --muted: #8b90a3;
+    --accent: #5b8cff;
+    --ok: #3ecf8e;
+    --warn: #f5a623;
+    --bad: #f5566a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--bg);
+    color: var(--text);
+    padding: 2rem;
+  }
+  h1 { font-size: 1.1rem; letter-spacing: 0.02em; margin: 0 0 1.5rem; color: var(--accent); }
+  form {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: end;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+  }
+  label { display: flex; flex-direction: column; font-size: 0.75rem; color: var(--muted); gap: 0.25rem; }
+  select, input, button {
+    background: #0c0e14;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.85rem;
+  }
+  input[type=text] { min-width: 420px; }
+  input[type=number] { width: 70px; }
+  button {
+    background: var(--accent);
+    color: #0c0e14;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+  }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  #status { color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem; }
+  #warnings { color: var(--warn); font-size: 0.85rem; margin-bottom: 1rem; white-space: pre-wrap; }
+  #graph { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; overflow-x: auto; }
+  .tree { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+  .node { margin-left: 1.25rem; border-left: 1px dashed var(--border); padding-left: 0.75rem; margin-top: 0.4rem; }
+  .node-head { font-size: 0.85rem; }
+  .chain { color: var(--accent); }
+  .tx { color: var(--text); }
+  .badge { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; }
+  .badge.confirmed { background: rgba(62,207,142,0.15); color: var(--ok); }
+  .badge.unresolved { background: rgba(245,166,35,0.15); color: var(--warn); }
+  .badge.stop { background: rgba(245,86,106,0.15); color: var(--bad); }
+  .bridge { color: var(--muted); font-size: 0.75rem; }
+  details { margin-top: 1rem; }
+  summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; }
+  pre { white-space: pre-wrap; word-break: break-all; font-size: 0.75rem; color: var(--muted); }
+</style>
+</head>
+<body>
+  <h1>bridgetrail — cross-chain bridge-hop tracer</h1>
+  <form id="form">
+    <label>chain
+      <select id="chain"></select>
+    </label>
+    <label>tx hash
+      <input id="txHash" type="text" placeholder="0x... or a Solana signature" />
+    </label>
+    <label>max hops
+      <input id="maxHops" type="number" value="5" min="1" max="15" />
+    </label>
+    <label>fan-out
+      <input id="fanOut" type="number" value="5" min="1" max="20" />
+    </label>
+    <button id="submit" type="submit">Trace</button>
+  </form>
+
+  <div id="status"></div>
+  <div id="warnings"></div>
+  <div id="graph" style="display:none"><pre class="mermaid" id="mermaidSrc"></pre></div>
+  <div id="tree" class="tree" style="display:none"></div>
+
+  <details>
+    <summary>raw JSON</summary>
+    <pre id="raw"></pre>
+  </details>
+
+<script type="module">
+  mermaid.initialize({ startOnLoad: false, theme: "dark" });
+
+  const form = document.getElementById("form");
+  const chainSelect = document.getElementById("chain");
+  const statusEl = document.getElementById("status");
+  const warningsEl = document.getElementById("warnings");
+  const graphEl = document.getElementById("graph");
+  const mermaidSrc = document.getElementById("mermaidSrc");
+  const treeEl = document.getElementById("tree");
+  const rawEl = document.getElementById("raw");
+  const submitBtn = document.getElementById("submit");
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[ch]));
+  }
+
+  fetch("/api/chains").then((r) => r.json()).then((chains) => {
+    chainSelect.innerHTML = chains
+      .map((c) => '<option value="' + c + '">' + c + "</option>")
+      .join("");
+  });
+
+  function nodeHtml(node) {
+    const shortTx = node.tx ? node.tx.slice(0, 14) + "…" : "(address only)";
+    let badge = "";
+    if (node.stopReason) {
+      badge = '<span class="badge stop">' + escapeHtml(node.stopReason) + "</span>";
+    } else if (node.hop) {
+      badge = '<span class="badge ' + node.hop.confidence + '">' + node.hop.confidence + "</span>";
+    }
+    const bridge = node.hop ? '<span class="bridge">via ' + escapeHtml(node.hop.bridge) + "</span>" : "";
+    let html =
+      '<div class="node-head"><span class="chain">' + escapeHtml(node.chain) + '</span> ' +
+      '<span class="tx">' + escapeHtml(shortTx) + "</span> " + bridge + " " + badge + "</div>";
+    for (const child of node.children || []) {
+      html += '<div class="node">' + nodeHtml(child) + "</div>";
+    }
+    return html;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const chain = chainSelect.value;
+    const txHash = document.getElementById("txHash").value.trim();
+    const maxHops = Number(document.getElementById("maxHops").value);
+    const fanOut = Number(document.getElementById("fanOut").value);
+    if (!txHash) return;
+
+    submitBtn.disabled = true;
+    statusEl.textContent = "Tracing…";
+    warningsEl.textContent = "";
+    graphEl.style.display = "none";
+    treeEl.style.display = "none";
+    rawEl.textContent = "";
+
+    try {
+      const res = await fetch("/api/trace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chain, txHash, maxHops, fanOut }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+
+      statusEl.textContent = data.hops.length + " hop(s) resolved.";
+      warningsEl.textContent = (data.warnings || []).join("\n");
+      rawEl.textContent = JSON.stringify(data, null, 2);
+
+      treeEl.style.display = "block";
+      treeEl.innerHTML = nodeHtml(data.root);
+
+      mermaidSrc.textContent = data.mermaid;
+      mermaidSrc.removeAttribute("data-processed");
+      graphEl.style.display = "block";
+      await mermaid.run({ nodes: [mermaidSrc] });
+    } catch (err) {
+      statusEl.textContent = "Error: " + err.message;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

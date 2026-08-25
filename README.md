@@ -126,6 +126,18 @@ const result = await trace(defaultAdapters, "ethereum", "0x...", {
 console.log(toMermaid(result.root));
 ```
 
+### Web UI
+
+For interactive use — paste a tx hash, see the trace tree and a rendered
+Mermaid graph without reading raw JSON:
+
+```bash
+npm run web   # http://localhost:4001 (set PORT to override)
+```
+
+This is a small local dev server (plain `node:http`, no auth, no build step)
+meant for running on your own machine — not for deploying as a public service.
+
 ## Known limitations — read before relying on this for evidence
 
 - **Not exhaustive.** This covers ~5-8 major bridges/aggregators. Long-tail or
