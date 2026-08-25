@@ -77,10 +77,17 @@ the output tells you exactly how it got each conclusion and where it gave up:
   expose one).
 - `stopReason: "no-bridge-match"` — none of the adapters recognized this tx as
   a bridge transaction. Likely means funds didn't move to another chain here.
-- `stopReason: "max-depth"` / `"cycle"` — recursion limits, not investigative
-  findings.
+- `stopReason: "unresolved-hop"` — a bridge match WAS found here but isn't
+  confirmed to a landing point (see the corresponding entry in `hops`) —
+  different from `no-bridge-match`, which means nothing was found at all.
+- `stopReason: "max-depth"` — hit the `--max-hops` limit, not an investigative finding.
+- `stopReason: "cycle"` — this tx already appears earlier in the same path
+  (a genuine loop back to an ancestor). Convergence from unrelated branches
+  onto the same tx is expanded normally and is not reported as a cycle.
 - `stopReason: "no-explorer-key"` — landed on an address but couldn't check for
   a re-bridge because `ETHERSCAN_API_KEY` isn't set.
+- `stopReason: "explorer-lookup-failed"` — the address lookup itself failed
+  (rate limit, network error) — NOT a confirmed dead end. Check `warnings`.
 
 ## Install
 
