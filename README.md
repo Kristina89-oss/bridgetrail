@@ -53,6 +53,11 @@ indexer recognizes the transaction hash wins:
 4. **LayerZero** (LayerZero Scan v2) — native LayerZero messages.
 5. **deBridge** (DLN API) — deBridge orders (destination chain + address only;
    this API doesn't expose a destination tx hash).
+6. **Celer cBridge** — via an undocumented `{tx_hash, src_chain_id}` convenience
+   path on `getTransferStatus`; destination chain is inferred from the block
+   explorer link in the response. Tried last, after LI.FI's own cBridge
+   coverage. Only the "not found" response shape was verified live — treat
+   populated results with extra caution (see `src/adapters/celer.ts`).
 
 If a hop resolves to a destination **transaction**, the trace recurses on it
 directly. If it only resolves to a destination **address** (no tx hash — e.g.
