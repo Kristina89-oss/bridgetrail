@@ -177,10 +177,20 @@
       treeEl.style.display = "block";
       treeEl.innerHTML = nodeHtml(data.root);
 
-      mermaidSrc.textContent = data.mermaid;
-      mermaidSrc.removeAttribute("data-processed");
-      graphEl.style.display = "block";
-      await mermaid.run({ nodes: [mermaidSrc] });
+      // Graph rendering is best-effort and must not clobber the trace
+      // result above if it fails (e.g. on a malformed diagram) — the tree
+      // view and raw JSON already have the full, successful result.
+      try {
+        mermaidSrc.textContent = data.mermaid;
+        mermaidSrc.removeAttribute("data-processed");
+        graphEl.style.display = "block";
+        await mermaid.run({ nodes: [mermaidSrc] });
+      } catch (graphErr) {
+        graphEl.style.display = "none";
+        warningsEl.textContent =
+          (warningsEl.textContent ? warningsEl.textContent + "\n" : "") +
+          "Graph rendering failed (see tree/JSON below): " + graphErr.message;
+      }
     } catch (err) {
       statusEl.textContent = "Error: " + err.message;
     } finally {

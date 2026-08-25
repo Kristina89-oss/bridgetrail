@@ -59,4 +59,21 @@ describe("wormholeAdapter", () => {
     expect(hop?.confidence).toBe("confirmed");
     expect(hop?.destTx).toBe("0xdef");
   });
+
+  it("returns null when the input tx only matches the destination leg (regression, same class as the LI.FI bug)", async () => {
+    mockFetchOnce({
+      operations: [
+        {
+          sourceChain: { chainId: 1, transaction: { txHash: "0xabc" } },
+          targetChain: { chainId: 30, transaction: { txHash: "0xdef" } },
+          content: { standarizedProperties: { fromChain: 1, toChain: 30 } },
+        },
+      ],
+    });
+
+    // Querying with the *destination* tx hash should not be treated as a new
+    // outbound hop starting there.
+    const hop = await wormholeAdapter.resolve({ chain: "base", txHash: "0xdef" });
+    expect(hop).toBeNull();
+  });
 });

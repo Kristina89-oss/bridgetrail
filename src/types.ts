@@ -50,8 +50,19 @@ export interface TraceNode {
   /** The hop that led INTO this node. Undefined for the root node. */
   hop?: Hop;
   children: TraceNode[];
-  /** Set when we stopped expanding this node (max depth, cycle, no adapter match). */
-  stopReason?: "max-depth" | "cycle" | "no-bridge-match" | "no-explorer-key";
+  /** Set when we stopped expanding this node. */
+  stopReason?:
+    | "max-depth"
+    | "cycle"
+    | "no-bridge-match"
+    | "no-explorer-key"
+    /** A bridge match was found here, but it isn't (yet) confirmed to a
+     * landing point — e.g. a pending transfer. See `hops` for the raw hop. */
+    | "unresolved-hop"
+    /** The address lookup needed to check for a re-bridge failed (network
+     * error, rate limit, malformed response) — distinct from "no-bridge-match",
+     * which means the lookup succeeded and found nothing. */
+    | "explorer-lookup-failed";
 }
 
 export interface TraceResult {

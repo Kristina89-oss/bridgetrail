@@ -1,6 +1,7 @@
 import type { BridgeAdapter, ChainSlug, Hop, ResolveInput } from "../types.js";
 import { WORMHOLE_CHAIN_ID } from "../chains.js";
 import { fetchJson } from "../http.js";
+import { sameTxHash } from "../txhash.js";
 
 /**
  * Wormholescan public API. Verified live on 2026-08-25 against both an empty
@@ -63,7 +64,7 @@ export const wormholeAdapter: BridgeAdapter = {
 
     const op = data.operations?.[0];
     if (!op) return null;
-    if (op.sourceChain?.transaction?.txHash?.toLowerCase() !== txHash.toLowerCase()) {
+    if (!sameTxHash(op.sourceChain?.transaction?.txHash, txHash, chain)) {
       return null;
     }
 

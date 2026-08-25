@@ -1,4 +1,5 @@
 import type { BridgeAdapter, ChainSlug, Hop, ResolveInput } from "../types.js";
+import { EVM_CHAIN_ID } from "../chains.js";
 import { fetchJson } from "../http.js";
 
 /**
@@ -18,14 +19,13 @@ import { fetchJson } from "../http.js";
  * always left undefined for this adapter. That's still enough to continue a
  * trace (chain + address), just not enough to point at one specific tx.
  */
+// deBridge uses standard EVM chain IDs for EVM chains — derived from
+// EVM_CHAIN_ID (string-keyed, since the DLN API returns chainId as a string)
+// rather than duplicated, plus deBridge's own non-standard Solana ID.
 const DEBRIDGE_CHAIN_ID: Record<string, ChainSlug> = {
-  "1": "ethereum",
-  "10": "optimism",
-  "56": "bsc",
-  "137": "polygon",
-  "8453": "base",
-  "42161": "arbitrum",
-  "43114": "avalanche",
+  ...Object.fromEntries(
+    Object.entries(EVM_CHAIN_ID).map(([slug, id]) => [String(id), slug as ChainSlug]),
+  ),
   "7565164": "solana",
 };
 

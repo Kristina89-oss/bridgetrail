@@ -1,6 +1,7 @@
 import type { BridgeAdapter, ChainSlug, Hop, ResolveInput } from "../types.js";
 import { EVM_CHAIN_ID } from "../chains.js";
 import { fetchJson } from "../http.js";
+import { sameTxHash } from "../txhash.js";
 
 /**
  * Celer cBridge. Verified live on 2026-08-25: `getTransferStatus` normally
@@ -21,6 +22,15 @@ import { fetchJson } from "../http.js";
  * Celer's public docs/SDKs and is NOT independently re-verified here.
  * Treat any populated result from this adapter with extra caution, and
  * check against https://cbridge.celer.network before relying on it.
+ *
+ * Unlike the other adapters, `CbridgeStatusResponse` has no field that
+ * echoes the request, so the same "does this response actually match what
+ * we asked about" guard used elsewhere isn't directly available. `src_block_tx_link`
+ * is the closest thing to one: when present, it's expected to point back at
+ * the source tx we queried with, so we check it and discard the response if
+ * it points somewhere else. This catches an obviously wrong/self-referential
+ * response but is weaker than the other adapters' guards, since the field
+ * is optional and its presence/meaning isn't confirmed live.
  */
 const CELER_STATUS_COMPLETED = 5; // TRANSFER_COMPLETED, per Celer's documented enum
 
@@ -83,6 +93,9 @@ export const celerAdapter: BridgeAdapter = {
     }
 
     if (data.err || data.status === undefined) return null;
+
+    const srcTxInResponse = txHashFromLink(data.src_block_tx_link);
+    if (srcTxInResponse && !sameTxHash(srcTxInResponse, txHash, chain)) return null;
 
     const destTx = txHashFromLink(data.dst_block_tx_link);
     const destChain = chainFromLink(data.dst_block_tx_link);

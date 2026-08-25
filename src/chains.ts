@@ -22,15 +22,11 @@ export const EVM_CHAIN_ID: Partial<Record<ChainSlug, number>> = {
   avalanche: 43114,
 };
 
-/** LI.FI uses plain EVM chain IDs too, plus 1151111081099710 for Solana. */
+/** LI.FI uses plain EVM chain IDs too, plus 1151111081099710 for Solana —
+ * derived from EVM_CHAIN_ID rather than duplicated so the two tables can't
+ * drift apart when a chain is added or its ID changes. */
 export const LIFI_CHAIN_ID: Record<ChainSlug, number> = {
-  ethereum: 1,
-  arbitrum: 42161,
-  optimism: 10,
-  base: 8453,
-  polygon: 137,
-  bsc: 56,
-  avalanche: 43114,
+  ...(EVM_CHAIN_ID as Record<ChainSlug, number>),
   solana: 1151111081099710,
 };
 
@@ -63,5 +59,5 @@ export const AXELAR_CHAIN_NAME: Partial<Record<ChainSlug, string>> = {
 };
 
 export function isEvm(chain: ChainSlug): boolean {
-  return chain !== "solana";
+  return chain in EVM_CHAIN_ID;
 }

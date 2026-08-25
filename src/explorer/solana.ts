@@ -16,13 +16,21 @@ interface RpcResponse<T> {
   error?: { message?: string };
 }
 
+export interface SolanaLookupResult {
+  /** false means the RPC call itself failed (network error, rate limit,
+   * malformed response) — NOT that the address has no signatures. Callers
+   * must not treat `ok: false` as a confirmed dead end. */
+  ok: boolean;
+  signatures: SolanaSignatureInfo[];
+}
+
 const DEFAULT_RPC = "https://api.mainnet-beta.solana.com";
 
 export async function getRecentSignatures(
   address: string,
   rpcUrl: string | undefined,
   limit = 25,
-): Promise<SolanaSignatureInfo[]> {
+): Promise<SolanaLookupResult> {
   let data: RpcResponse<SolanaSignatureInfo[]>;
   try {
     data = await fetchJson(rpcUrl || DEFAULT_RPC, {
@@ -36,8 +44,9 @@ export async function getRecentSignatures(
       }),
     });
   } catch {
-    return [];
+    return { ok: false, signatures: [] };
   }
 
-  return data.result ?? [];
+  if (data.error || !Array.isArray(data.result)) return { ok: false, signatures: [] };
+  return { ok: true, signatures: data.result };
 }

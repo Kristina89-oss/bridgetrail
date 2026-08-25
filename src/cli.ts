@@ -35,9 +35,22 @@ program
       return;
     }
 
+    const maxHops = Number(opts.maxHops);
+    const fanOut = Number(opts.fanOut);
+    if (!Number.isFinite(maxHops) || maxHops < 1) {
+      console.error(`--max-hops must be a positive number, got "${opts.maxHops}"`);
+      process.exitCode = 1;
+      return;
+    }
+    if (!Number.isFinite(fanOut) || fanOut < 1) {
+      console.error(`--fan-out must be a positive number, got "${opts.fanOut}"`);
+      process.exitCode = 1;
+      return;
+    }
+
     const result = await trace(defaultAdapters, chain, txHash, {
-      maxHops: Number(opts.maxHops),
-      fanOut: Number(opts.fanOut),
+      maxHops,
+      fanOut,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY,
       solanaRpcUrl: process.env.SOLANA_RPC_URL,
     });

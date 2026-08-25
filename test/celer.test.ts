@@ -39,4 +39,20 @@ describe("celerAdapter", () => {
     expect(hop?.confidence).toBe("unresolved");
     expect(hop?.destTx).toBeUndefined();
   });
+
+  it("discards a response whose src_block_tx_link points at a different tx than requested", async () => {
+    // CbridgeStatusResponse has no dedicated request-echo field, but
+    // src_block_tx_link is the closest thing to one — a populated response
+    // that clearly doesn't correspond to the requested tx should be dropped
+    // rather than trusted unconditionally.
+    mockFetchOnce({
+      status: 5,
+      src_block_tx_link:
+        "https://etherscan.io/tx/0x1111111111111111111111111111111111111111111111111111111111111111",
+      dst_block_tx_link:
+        "https://bscscan.com/tx/0xdb3216878687ab83cd6f8bd263222ec5c1358c4aec21213e2ea784bcb2732f86",
+    });
+    const hop = await celerAdapter.resolve({ chain: "ethereum", txHash: "0xabc" });
+    expect(hop).toBeNull();
+  });
 });

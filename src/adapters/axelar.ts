@@ -1,6 +1,7 @@
 import type { BridgeAdapter, ChainSlug, Hop, ResolveInput } from "../types.js";
 import { AXELAR_CHAIN_NAME } from "../chains.js";
 import { fetchJson } from "../http.js";
+import { sameTxHash } from "../txhash.js";
 
 /**
  * Axelarscan GMP API. Verified live on 2026-08-25, including a fully
@@ -73,7 +74,7 @@ export const axelarAdapter: BridgeAdapter = {
 
     const record = data.data?.[0];
     if (!record?.call) return null;
-    if (record.call.transactionHash?.toLowerCase() !== txHash.toLowerCase()) return null;
+    if (!sameTxHash(record.call.transactionHash, txHash, chain)) return null;
 
     const destChainName =
       record.executed?.chain ?? record.call.returnValues?.destinationChain;

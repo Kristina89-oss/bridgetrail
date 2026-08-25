@@ -63,4 +63,20 @@ describe("axelarAdapter", () => {
     expect(hop?.destChain).toBe("avalanche");
     expect(hop?.confidence).toBe("unresolved");
   });
+
+  it("returns null when the input tx only matches the executed leg (regression, same class as the LI.FI bug)", async () => {
+    mockFetchOnce({
+      data: [
+        {
+          call: { chain: "ethereum", transactionHash: "0x477af1", returnValues: {} },
+          executed: { chain: "avalanche", transactionHash: "0x531301" },
+          status: "executed",
+        },
+      ],
+      total: 1,
+    });
+
+    const hop = await axelarAdapter.resolve({ chain: "avalanche", txHash: "0x531301" });
+    expect(hop).toBeNull();
+  });
 });

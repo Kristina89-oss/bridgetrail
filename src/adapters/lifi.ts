@@ -1,6 +1,7 @@
 import type { BridgeAdapter, ChainSlug, Hop, ResolveInput } from "../types.js";
 import { LIFI_CHAIN_ID } from "../chains.js";
 import { fetchJson } from "../http.js";
+import { sameTxHash } from "../txhash.js";
 
 /**
  * LI.FI (https://li.quest) is a bridge/DEX aggregator whose public `/v1/status`
@@ -67,9 +68,7 @@ export const lifiAdapter: BridgeAdapter = {
       return null;
     }
 
-    const echoesInput = (info?: LifiTxInfo) =>
-      info?.txHash?.toLowerCase() === txHash.toLowerCase();
-    if (!echoesInput(data.sending)) {
+    if (!sameTxHash(data.sending?.txHash, txHash, chain)) {
       // Either the API returned something unrelated to our tx (discard), or
       // the input tx is the *destination* leg of a known transfer, not a
       // new outbound hop starting here (also discard — see class comment).
@@ -78,6 +77,7 @@ export const lifiAdapter: BridgeAdapter = {
 
     const receiving = data.receiving;
     const destChain = receiving ? chainIdToSlug[receiving.chainId] : undefined;
+    const done = data.status === "DONE" && Boolean(receiving?.txHash);
 
     return {
       bridge: `lifi:${data.tool ?? "unknown"}`,
@@ -85,11 +85,11 @@ export const lifiAdapter: BridgeAdapter = {
       sourceTx: txHash,
       sourceAddress: data.fromAddress,
       destChain,
-      destTx: data.status === "DONE" ? receiving?.txHash : undefined,
+      destTx: done ? receiving?.txHash : undefined,
       destAddress: data.toAddress,
       amount: receiving?.amount ?? data.sending?.amount,
       token: receiving?.token?.symbol ?? data.sending?.token?.symbol,
-      confidence: data.status === "DONE" ? "confirmed" : "unresolved",
+      confidence: done ? "confirmed" : "unresolved",
       raw: data,
     };
   },
