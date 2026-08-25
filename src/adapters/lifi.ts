@@ -10,10 +10,18 @@ import { fetchJson } from "../http.js";
  * `sending`/`receiving` objects with chainId, txHash, token, amount, plus a
  * `tool` field naming the underlying bridge.
  *
- * IMPORTANT: in testing, a malformed/unmatched txHash did NOT reliably come
- * back as "not found" — it can return an unrelated transfer. Always verify
- * `sending.txHash` or `receiving.txHash` echoes the input hash before trusting
- * the result.
+ * IMPORTANT (two issues found via live multi-hop testing, not just docs):
+ * 1. A malformed/unmatched txHash does NOT reliably come back as "not
+ *    found" — it can return an unrelated transfer. We verify the response
+ *    echoes the requested hash before trusting it.
+ * 2. The endpoint matches txHash against EITHER leg of a transfer — querying
+ *    with a transfer's *destination* tx returns the same record as querying
+ *    with its *source* tx. Naively treating any match as "found a new hop
+ *    starting here" causes a self-referential hop (destChain/destTx equal to
+ *    the input) when you ask about a tx that's already a landing point. We
+ *    only treat this as a hop if `sending.txHash` — the source leg — matches
+ *    the input; a match only on `receiving` means "this tx is where a
+ *    transfer arrived", which isn't a new outbound hop.
  */
 interface LifiTxInfo {
   txHash: string;
@@ -61,8 +69,10 @@ export const lifiAdapter: BridgeAdapter = {
 
     const echoesInput = (info?: LifiTxInfo) =>
       info?.txHash?.toLowerCase() === txHash.toLowerCase();
-    if (!echoesInput(data.sending) && !echoesInput(data.receiving)) {
-      // API returned something, but not for the tx we asked about — discard.
+    if (!echoesInput(data.sending)) {
+      // Either the API returned something unrelated to our tx (discard), or
+      // the input tx is the *destination* leg of a known transfer, not a
+      // new outbound hop starting here (also discard — see class comment).
       return null;
     }
 

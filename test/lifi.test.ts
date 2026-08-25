@@ -46,6 +46,26 @@ describe("lifiAdapter", () => {
     expect(hop).toBeNull();
   });
 
+  it("returns null when the input tx is only the RECEIVING leg (regression: observed live self-loop)", async () => {
+    // Reproduces a real bug found via a live multi-hop trace: querying
+    // /v1/status with a transfer's destination tx hash echoed the same
+    // record back, with `receiving.txHash` equal to our input. Treating that
+    // as a new hop produced a hop pointing from a tx to itself, which the
+    // orchestrator only survived because of its separate cycle guard.
+    const destTx = "0xdef";
+    mockFetchOnce({
+      status: "DONE",
+      tool: "squid",
+      sending: { txHash: "0xabc", chainId: 1 },
+      receiving: { txHash: destTx, chainId: 56 },
+      fromAddress: "0x1",
+      toAddress: "0x2",
+    });
+
+    const hop = await lifiAdapter.resolve({ chain: "bsc", txHash: destTx });
+    expect(hop).toBeNull();
+  });
+
   it("returns null for NOT_FOUND", async () => {
     mockFetchOnce({ status: "NOT_FOUND" });
     const hop = await lifiAdapter.resolve({ chain: "ethereum", txHash: "0xabc" });

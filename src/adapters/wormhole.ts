@@ -15,6 +15,12 @@ import { fetchJson } from "../http.js";
  * relayer-model transfers it's absent, so `standarizedProperties.toChain` is
  * the more reliable destination-chain signal and is used as the primary
  * source here, with `targetChain.transaction.txHash` layered on top when present.
+ *
+ * Guards against the same class of bug found live in the LI.FI adapter: we
+ * only treat this as a hop if `sourceChain.transaction.txHash` matches the
+ * requested hash. Without that check, querying with an already-landed
+ * destination tx could in principle echo back the same operation and be
+ * mistaken for a new outbound hop from that tx.
  */
 interface WormholeOperation {
   sourceChain?: { chainId?: number; transaction?: { txHash?: string } };
@@ -57,6 +63,9 @@ export const wormholeAdapter: BridgeAdapter = {
 
     const op = data.operations?.[0];
     if (!op) return null;
+    if (op.sourceChain?.transaction?.txHash?.toLowerCase() !== txHash.toLowerCase()) {
+      return null;
+    }
 
     const props = op.content?.standarizedProperties;
     const destChainId = op.targetChain?.chainId ?? props?.toChain;

@@ -17,6 +17,12 @@ import { fetchJson } from "../http.js";
  * application-specific, so there's no generic "recipient wallet" field; we
  * surface `destinationContractAddress` (the messaged contract) as the closest
  * available proxy and flag it as such.
+ *
+ * `searchGMP` isn't documented as scoping strictly to the *source* tx hash,
+ * so — same guard as the LI.FI and Wormhole adapters — we only treat this as
+ * a hop if `call.transactionHash` matches the request; a match only on
+ * `executed.transactionHash` would mean the input is already a landing
+ * point, not a new outbound hop.
  */
 interface AxelarGmpRecord {
   call?: {
@@ -67,6 +73,7 @@ export const axelarAdapter: BridgeAdapter = {
 
     const record = data.data?.[0];
     if (!record?.call) return null;
+    if (record.call.transactionHash?.toLowerCase() !== txHash.toLowerCase()) return null;
 
     const destChainName =
       record.executed?.chain ?? record.call.returnValues?.destinationChain;
